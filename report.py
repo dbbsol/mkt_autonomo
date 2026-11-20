@@ -17,7 +17,7 @@ try:
     pdfmetrics.registerFont(TTFont("PR", str(FD / "Poppins-Regular.ttf"))); pdfmetrics.registerFont(TTFont("PB", str(FD / "Poppins-SemiBold.ttf"))); R, BD = "PR", "PB"
 except Exception:
     R, BD = "Helvetica", "Helvetica-Bold"
-INK, ACC, SOFT, GREY = colors.HexColor("#1A0D14"), colors.HexColor("#C42340"), colors.HexColor("#FFF1F3"), colors.HexColor("#6F6670")
+INK, ACC, SOFT, GREY = colors.HexColor("#2A1914"), colors.HexColor("#DB4F7F"), colors.HexColor("#FFF1EC"), colors.HexColor("#6F6670")
 ST_ = dict(h1=ParagraphStyle("h1", fontName=BD, fontSize=26, leading=31, textColor=INK, spaceAfter=4),
            h2=ParagraphStyle("h2", fontName=BD, fontSize=14, leading=18, textColor=ACC, spaceBefore=14, spaceAfter=6),
            h3=ParagraphStyle("h3", fontName=BD, fontSize=10.5, leading=14, textColor=INK, spaceBefore=8),

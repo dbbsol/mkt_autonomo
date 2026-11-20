@@ -109,20 +109,6 @@ def fix_plan(p, n, k):
     return p
 
 
-def local_plan(text, n, k):
-    """Modo local (sem IA): distribui as frases do texto pelos slides e escolhe ícones por palavra-chave."""
-    S = [x for x in re.split(r"(?<=[.!?])\s+", re.sub(r"\s+", " ", text).strip()) if x] or [""]
-    out = []
-    for i in range(n):
-        ch = S[i * len(S) // n:(i + 1) * len(S) // n] or [S[-1]]
-        first, rest = ch[0], " ".join(ch[1:])
-        if len(first) > 90:
-            w = first.split()
-            rest, first = " ".join(ch), " ".join(w[:10]) + "…"
-        out.append(Slide(label=f"{i + 1:02d}", headline=first, body=rest, icon=IC.pick_icon(first + " " + rest, ""), image=i if i < k else None))
-    return Plan(slides=out)
-
-
 def _clean(e):
     return gemini.clean(e)
 
@@ -131,14 +117,3 @@ def gemini_plan(text, n, fmt, k):
     """Plano de carrossel pelo Gemini. Levanta gemini.GeminiError (mensagem em português) se falhar."""
     d = gemini.generate_json(_prompt(text, n, fmt, k))
     return fix_plan(Plan(**d), n, k)
-
-
-def make_plan(text, n, fmt, k, use_ai):
-    """Retorna (plano, modo, aviso). Nunca depende da IA para funcionar."""
-    if use_ai and gemini.has_key():
-        try:
-            return gemini_plan(text, n, fmt, k), "gemini", ""
-        except Exception as e:  # noqa
-            return fix_plan(local_plan(text, n, k), n, k), "demo", f"Gemini falhou, usei o modo local. Motivo: {_clean(e)}"
-    aviso = "" if not use_ai else "Sem chave do Gemini: usei o modo local. Cole a chave na barra lateral para ativar a IA."
-    return fix_plan(local_plan(text, n, k), n, k), "demo", aviso

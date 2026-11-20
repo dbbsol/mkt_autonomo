@@ -1,3 +1,4 @@
+from pathlib import Path
 """Motor de design 'Studio': carrosséis editoriais com sombras suaves, selos 3D, pincel, vidro, ícones e fotos.
 Tudo é desenhado em 2x (super-amostragem) e reduzido, para bordas lisas. Um estilo = um arquivo em templates/ (engine='studio').
 Layouts: capa, capa_foto, texto, lista, icones, foto, citacao, cta  (escolha automática, com opção manual por slide)."""
@@ -6,7 +7,7 @@ from collections import OrderedDict
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageOps, ImageChops
 from config import FORMATS
-from dsl import face
+from fonts import face
 import icons as IC
 
 SS = 2
@@ -187,6 +188,11 @@ def ImageChops_multiply(a, b):
     return ImageChops.multiply(a, b)
 
 
+def ImageChops_offset(a, dx, dy):
+    from PIL import ImageChops
+    return ImageChops.offset(a, dx, dy)
+
+
 def ImageChops_sub(a, b):
     from PIL import ImageChops
     return ImageChops.subtract(a, b)
@@ -305,23 +311,30 @@ def headline(c, text, hl, x, y, w, size, minsize, maxh, align="c", brush=True, k
     flags = [norm(wd) in hset for wd in words]
     if brush and not any(flags) and len(words) >= 2:   # destaque automático: palavra mais longa entre as 2 últimas
         j = max(range(len(words) - 2, len(words)), key=lambda q: len(norm(words[q]))); flags[j] = True
-    # grupos consecutivos
+    # só o 1º grupo destacado vira pincel; depois escolhe-se a palavra-herói entre as restantes
+    kinds = []; seen = False; prev = False
+    for fl in flags:
+        if fl and brush and (not seen or prev): kinds.append("hl"); seen = True
+        else: kinds.append("txt")
+        prev = fl and kinds[-1] == "hl"
+    if brush and st.get("hero") and len(words) >= 3:
+        cand = [j for j, wd in enumerate(words) if kinds[j] == "txt" and len(norm(wd)) >= 5 and not (j == 0 and len(words) >= 4)]
+        if cand: kinds[max(cand, key=lambda j: (len(norm(words[j])), -j))] = "hero"
+    if not brush: kinds = ["hl" if fl else "txt" for fl in flags]
     groups = []
-    for wd, fl in zip(words, flags):
-        if groups and groups[-1][1] == fl: groups[-1][0].append(wd)
-        else: groups.append([[wd], fl])
-    if brush:  # só o 1º grupo destacado vira pincel
-        seen = False
-        for g in groups:
-            if g[1]:
-                if seen: g[1] = False
-                seen = True
+    for wd, kd in zip(words, kinds):
+        if groups and groups[-1][1] == kd and kd != "hero": groups[-1][0].append(wd)
+        else: groups.append([[wd], kd])
     col_fg = color or c.col("fg"); s = float(size); wpx = w * k
     while True:
         blocks = []; Hh = 0
-        for gi, (gw, fl) in enumerate(groups):
+        for gi, (gw, kd) in enumerate(groups):
             txt = " ".join(gw)
-            if brush and fl:
+            if kd == "hero":
+                sh = s * st.get("hero_scale", 1.2); f = c.font(key, sh)
+                while c.d.textlength(txt, font=f) > wpx and sh > s * .6: sh *= .96; f = c.font(key, sh)
+                blocks.append(("hero", [txt], sh))
+            elif brush and kd == "hl":
                 sh = s * hs; f = c.font(key, sh)
                 while c.d.textlength(txt, font=f) + sh * k * .5 > wpx and sh > s * .6: sh *= .96; f = c.font(key, sh)
                 blocks.append(("hl", [txt], sh))
@@ -353,7 +366,7 @@ def headline(c, text, hl, x, y, w, size, minsize, maxh, align="c", brush=True, k
             cp = cap_h(c, key, sz)
             if kind == "hl": hh += cp * 1.62
             else: hh += len(ls) * cp + (len(ls) - 1) * cp * gapf
-            if bi < len(blocks) - 1: hh += cp * (gapf + (.22 if kind == "hl" or blocks[bi + 1][0] == "hl" else 0))
+            if bi < len(blocks) - 1: hh += cp * (gapf + (.22 if kind == "hl" or blocks[bi + 1][0] == "hl" else 0) + (.10 if "hero" in (kind, blocks[bi + 1][0]) else 0))
         if hh <= maxh or s <= minsize: break
         s *= .95
     if hh > maxh: c.warns.append(f"{tag or 'Slide'}: título longo; reduzido ao mínimo (sugestão: encurtar).")
@@ -371,6 +384,14 @@ def headline(c, text, hl, x, y, w, size, minsize, maxh, align="c", brush=True, k
             lay = lay.rotate(-1.6 if align == "c" else -1.2, resample=Image.BICUBIC, expand=True)
             c.put(lay, bx - sz * .30 - (lay.width / k - (bw + sz * .6)) / 2, cy - (lay.height / k - bh) / 2 + cp * .04, (cp * .10, cp * .12, .30, mix(c.P["accent"], (0, 0, 0), .55)))
             info = (bx, cy, bw, bh); cy += bh
+        elif kind == "hero":
+            txt = ls[0]; base = cy + cp; lw = c.d.textlength(txt, font=f) / k; xx = x if align == "l" else x + (w - lw) / 2
+            pad = int(sz * .2 * k); bx0, by0 = int(xx * k) - pad, int((base - cp) * k) - pad; bw_, bh_ = int(lw * k) + 2 * pad, int(cp * k) + 2 * pad
+            tm = Image.new("L", (bw_, bh_), 0); ImageDraw.Draw(tm).text((pad, pad + int(cp * k)), txt, font=f, fill=255, anchor="ls")
+            sm = ImageChops_offset(tm.filter(ImageFilter.GaussianBlur(sz * k * .035)), 0, int(sz * k * .05))
+            c.im.paste(mix(c.P["accent"], (60, 10, 30), .55), (bx0, by0), scale_mask(sm, .34))
+            c.im.paste(grad(bw_, bh_, mix(c.P["accent"], (255, 255, 255), .14), mix(c.P["accent"], (0, 0, 0), .12), 90), (bx0, by0), tm)
+            c.d = ImageDraw.Draw(c.im, "RGBA"); cy = base + (cp * gapf if bi < len(blocks) - 1 else 0)
         else:
             for li, ln in enumerate(ls):
                 base = cy + cp; lw = c.d.textlength(ln, font=f) / k
@@ -384,7 +405,7 @@ def headline(c, text, hl, x, y, w, size, minsize, maxh, align="c", brush=True, k
                 else:
                     c.d.text((xx * k, base * k), ln, font=f, fill=col_fg, anchor="ls")
                 cy = base + (cp * gapf if li < len(ls) - 1 or bi < len(blocks) - 1 else 0)
-        if bi < len(blocks) - 1: cy += cp * (gapf + (.22 if kind == "hl" or blocks[bi + 1][0] == "hl" else 0)) if kind == "hl" else cp * (.22 if blocks[bi + 1][0] == "hl" else 0)
+        if bi < len(blocks) - 1: cy += (cp * (gapf + (.22 if kind == "hl" or blocks[bi + 1][0] == "hl" else 0)) if kind == "hl" else cp * (.22 if blocks[bi + 1][0] == "hl" else 0)) + (cp * .10 if "hero" in (kind, blocks[bi + 1][0]) else 0)
     return cy, info
 
 
@@ -461,8 +482,9 @@ def phone(c, cx, top, w, rot=-6, icon="heart", clip_y=None):
     k = c.k; h = w * 1.92; Wp, Hp = int(w * k), int(h * k); pad = int(w * .22 * k)
     L = Image.new("RGBA", (Wp + 2 * pad, Hp + 2 * pad), (0, 0, 0, 0)); d = ImageDraw.Draw(L)
     r = int(w * .15 * k); mk = Image.new("L", (Wp, Hp), 0); ImageDraw.Draw(mk).rounded_rectangle((0, 0, Wp - 1, Hp - 1), r, fill=255)
-    body = grad(Wp, Hp, (62, 58, 72), (12, 11, 17), 62); L.paste(body, (pad, pad), mk)
-    rim = Image.new("RGBA", (Wp, Hp), (0, 0, 0, 0)); ImageDraw.Draw(rim).rounded_rectangle((k, k, Wp - k - 1, Hp - k - 1), r, outline=(255, 255, 255, 70), width=max(2, k * 2)); L.alpha_composite(rim, (pad, pad))
+    light = c.st.get("phone_light")
+    body = (grad(Wp, Hp, mix(c.P["accent"], (255, 255, 255), .58), mix(c.P["accent"], (255, 255, 255), .08), 62) if light else grad(Wp, Hp, (62, 58, 72), (12, 11, 17), 62)); L.paste(body, (pad, pad), mk)
+    rim = Image.new("RGBA", (Wp, Hp), (0, 0, 0, 0)); ImageDraw.Draw(rim).rounded_rectangle((k, k, Wp - k - 1, Hp - k - 1), r, outline=(255, 255, 255, 150 if light else 70), width=max(2, k * 2)); L.alpha_composite(rim, (pad, pad))
     b = int(w * .034 * k); sw, sh = Wp - 2 * b, Hp - 2 * b; sr = max(4, r - b)
     scr = Image.new("RGB", (sw, sh), (251, 249, 249)); sd = ImageDraw.Draw(scr, "RGBA"); u = sw / 100.0
     a0 = c.P["accent"]
@@ -483,7 +505,7 @@ def phone(c, cx, top, w, rot=-6, icon="heart", clip_y=None):
     gl = Image.new("L", (sw, sh), 0); ImageDraw.Draw(gl).polygon([(0, 0), (sw * .62, 0), (sw * .18, sh * .62), (0, sh * .62)], fill=34)
     scr.paste((255, 255, 255), (0, 0), ImageChops_multiply(gl.filter(ImageFilter.GaussianBlur(sw * .02)), sm))
     L.paste(scr, (pad + b, pad + b), sm)
-    d.rounded_rectangle((pad + Wp * .5 - w * k * .13, pad + b * 1.9, pad + Wp * .5 + w * k * .13, pad + b * 1.9 + w * k * .05), w * k * .03, fill=(8, 8, 12, 255))
+    d.rounded_rectangle((pad + Wp * .5 - w * k * .13, pad + b * 1.9, pad + Wp * .5 + w * k * .13, pad + b * 1.9 + w * k * .05), w * k * .03, fill=(tuple(mix(c.P["accent"], (0, 0, 0), .45)) + (255,)) if light else (8, 8, 12, 255))
     if rot: L = L.rotate(rot, resample=Image.BICUBIC, expand=True)
     X, Y = cx - L.width / 2 / k, top - (L.height - Hp - 2 * pad) / 2 / k - pad / k
     if clip_y is not None:
@@ -500,7 +522,7 @@ def header(c):
     """Linha discreta no topo: marca à esquerda, contador à direita."""
     if c.n < 2: return
     y = c.top + 58; m = c.m
-    name = (c.brand or c.st.get("tagline", "")).upper()
+    name = (c.st.get("header_left") or c.brand or c.st.get("tagline", "")).upper()
     on_photo = getattr(c, "full_photo", False); tc = (255, 255, 255, 235) if on_photo else c.col("muted")
     if on_photo: c.d.rectangle((0, 0, c.im.width, int((y + 40) * c.k)), fill=(0, 0, 0, 70))
     if name: c.text(m, y, name, "pop_m", 19, tc, sp=3.4)
@@ -534,7 +556,7 @@ def L_capa(c, s, img):
     label_pill(c, s.label, W / 2, y + 4, icon=s.icon or None)
     y += 96
     avail = c.y1 - y
-    yh, info = headline(c, s.headline, s.highlight, m, y, cw, 190 if img is not None else 150, 96 if img is not None else 84, avail * (.44 if img is not None else .40), "c", True, tag=f"Slide {c.i + 1}")
+    yh, info = headline(c, s.headline, s.highlight, m, y, cw, 190 if img is not None else 150, 96 if img is not None else 84, avail * (.44 if img is not None else .47), "c", True, tag=f"Slide {c.i + 1}")
     y = yh + 30
     ornament(c, W / 2, y, 300); y += 34
     if s.subhead.strip():
@@ -667,8 +689,8 @@ def L_icones(c, s, img):
         cx = m + cw * (q + .5) / n; r = min(106, cw / n * .40)
         orbit(c, cx, by, r * 1.12, 2) if n <= 3 else None
         badge(c, it.icon or IC.pick_icon(it.label), cx, by, r)
-        c.text(cx, by + r + 58, it.label, "pop_s", 34, c.col("fg"), anchor="ms")
-        if it.text: paragraph(c, it.text, cx - cw / n / 2 + 14, by + r + 76, cw / n - 28, 27, c.col("muted"), align="c", lh=1.35, maxh=120, minsize=18, tag=f"Slide {c.i + 1}")
+        yy, _ = paragraph(c, it.label, cx - cw / n / 2 + 6, by + r + 30, cw / n - 12, 34, c.col("fg"), c.col("accent"), reg="pop_s", bold="pop_s", align="c", lh=1.15, maxh=92, minsize=22, tag=f"Slide {c.i + 1}")
+        if it.text: paragraph(c, it.text, cx - cw / n / 2 + 14, yy + 8, cw / n - 28, 27, c.col("muted"), align="c", lh=1.35, maxh=120, minsize=18, tag=f"Slide {c.i + 1}")
 
 
 def L_foto(c, s, img):
@@ -708,7 +730,7 @@ def L_citacao(c, s, img):
 def L_cta(c, s, img):
     m, W, k = c.m, c.W, c.k; cw = W - 2 * m; y = c.y0
     label_pill(c, s.label or "PRÓXIMO PASSO", W / 2, y + 4, icon=s.icon or "send"); y += 100
-    yh, info = headline(c, s.headline, s.highlight, m, y, cw, 170, 80, (c.y1 - y) * .40, "c", True, tag=f"Slide {c.i + 1}")
+    yh, info = headline(c, s.headline, s.highlight, m, y, cw, 160, 72, (c.y1 - y) * .52, "c", True, tag=f"Slide {c.i + 1}")
     y = yh + 40; ornament(c, W / 2, y, 300); y += 38
     t = s.subhead.strip() or s.body.strip()
     if t: y, _ = paragraph(c, t, m + 30, y, cw - 60, 36, c.col("body"), c.col("accent"), align="c", lh=1.42, maxh=190, tag=f"Slide {c.i + 1}"); y += 24
@@ -762,10 +784,11 @@ def render_slide(i, n, s, fmt, st, brand, imgs, logo):
     key = (i, n, s.model_dump_json(), fmt, st["name"], brand, _h(img_b), _h(logo))
     if key in _CACHE:
         _CACHE.move_to_end(key); im, w = _CACHE[key]; return im.copy(), list(w)
-    c = Cv(fmt, st, i, n, brand, Image.open(io.BytesIO(logo)).convert("RGB") if logo else None)
     img = Image.open(io.BytesIO(img_b)).convert("RGB") if img_b else None
     lay = s.layout if s.layout in LAY else auto_layout(i, n, s, img is not None)
     if lay == "capa_foto" and img is None: lay = "capa"
+    st = {**st, **st.get("alt", {}).get(lay, {})}   # ex.: slide de citação com fundo terracota e serifa
+    c = Cv(fmt, st, i, n, brand, Image.open(io.BytesIO(logo)).convert("RGB") if logo else None)
     draw_bg(c); bg = c.im.copy(); dy = 0
     if lay in BALANCE:   # 1ª passada só mede onde termina o conteúdo; depois o bloco é centralizado na área útil
         c.measure = True; LAY[lay](c, s, img); c.measure = False; c.warns.clear()
@@ -791,6 +814,9 @@ def render_slide(i, n, s, fmt, st, brand, imgs, logo):
 
 def render_studio(slides, fmt, tpl, brand, imgs=(), logo=None):
     st = dict(tpl["style"]); st["name"] = tpl["name"]; n = len(slides); ims, W = [], []
+    if logo is None and tpl.get("logo"):
+        p = Path(__file__).parent / tpl["logo"]
+        if p.exists(): logo = p.read_bytes()
     for i, s in enumerate(slides):
         im, w = render_slide(i, n, s, fmt, st, brand or tpl.get("handle", ""), list(imgs), logo)
         ims.append(im); W += w

@@ -4,7 +4,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 import gemini
 import strategy as ST
-from ai import gemini_plan, make_plan
+from ai import gemini_plan
 
 
 class Resp:
@@ -77,14 +77,6 @@ def test_quota_message(monkeypatch):
     install(monkeypatch, lambda m, c, cf: (_ for _ in ()).throw(Exception("429 RESOURCE_EXHAUSTED quota")))
     with pytest.raises(gemini.GeminiError) as e: gemini.generate_json("x")
     assert "cota" in str(e.value).lower()
-
-
-def test_make_plan_falls_back_to_local(monkeypatch):
-    install(monkeypatch, lambda m, c, cf: (_ for _ in ()).throw(Exception("API_KEY_INVALID")))
-    p, modo, aviso = make_plan("Frase um. Frase dois. Frase três.", 3, "Instagram 4:5", 0, True)
-    assert modo == "demo" and len(p.slides) == 3 and "Gemini falhou" in aviso
-    monkeypatch.delenv("GEMINI_API_KEY"); p, modo, aviso = make_plan("a. b. c.", 2, "Instagram 4:5", 0, True)
-    assert modo == "demo" and "Sem chave" in aviso
 
 
 def test_strategy_build_ai_normalizes(monkeypatch):

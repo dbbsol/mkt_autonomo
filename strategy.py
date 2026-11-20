@@ -82,17 +82,23 @@ _STOP = {"de", "da", "do", "das", "dos", "e", "a", "o", "com", "para", "em", "no
 
 
 def _short(t, n=3):
-    w = (t or "").strip().rstrip(".!?").split()[:n]
+    w = [x for x in (t or "").strip().rstrip(".!?").split() if any(ch.isalnum() for ch in x)][:n]
     while len(w) > 1 and (w[-1].lower() in _STOP or w[-1].isdigit()): w.pop()
     return " ".join(w).capitalize() if w else ""
 
 
-def _items(lines, p, n=3, fb=()):
-    src = list(lines) or list(fb)
+def _cap(t):
+    t = (t or "").strip(); return t[:1].upper() + t[1:]
+
+
+def _items(lines, p, n=3, fb=(), words=2):
+    """n itens únicos (rotacionando pelo nº do carrossel); completa com textos padrão se faltar."""
+    uniq = list(dict.fromkeys(x.strip() for x in lines if x and x.strip()))
+    if uniq: r = p.n % len(uniq); uniq = uniq[r:] + uniq[:r]
+    src = (uniq + [x for x in fb if x not in uniq])[:n]
     out = []
-    for j in range(n):
-        t = src[(p.n + j) % len(src)] if src else ""
-        lb = _short(t); tx = "" if (len(t.split()) <= 3 or t.lower().startswith(lb.lower())) else t[:90]
+    for j, t in enumerate(src):
+        lb = _short(t, words); tx = "" if (len(t.split()) <= words or t.lower().startswith(lb.lower())) else _cap(t)[:90]
         out.append(Item(icon=IC.pick_icon(t, ["target", "chart", "bulb", "heart", "gear"][(p.n + j) % 5]), label=lb, text=tx))
     return out
 
@@ -100,7 +106,7 @@ def _items(lines, p, n=3, fb=()):
 def local_slides(B, p):
     """Carrossel de 6 slides sem IA (capa, problema, lista, caminho, passos/ícones, CTA), já com layout e ícones."""
     pub, dores, des, difs = (B.get("pub") or "").strip(), L(B.get("dores")), L(B.get("desejos")), L(B.get("diferenciais"))
-    g = lambda a, i, d: a[i % len(a)] if a else d
+    g = lambda a, i, d: _cap(a[i % len(a)]) if a else d
     tema = p.tema
     hl = max((w for w in re.findall(r"[A-Za-zÀ-ÿ]{4,}", p.gancho)), key=len, default="")
     steps = [Item(label="Entenda", text=f"Veja onde {tema} trava hoje."), Item(label="Organize", text="Defina o que importa primeiro."),
@@ -110,7 +116,7 @@ def local_slides(B, p):
     return [Slide(layout="capa", label=p.pilar.upper(), headline=p.gancho, highlight=hl, subhead=f"Para {pub}" if pub else B["cliente"], icon=IC.pick_icon(tema + " " + p.gancho, "sparkle")),
             Slide(layout="texto", label="O PONTO DE PARTIDA", headline="Você já passou por isso?", subhead=g(dores, p.n, f"Entender {tema} muda o jogo."),
                   body=f"Quase ninguém explica **{tema}** com clareza.", icon="eye"),
-            Slide(layout="lista", label="POR QUE IMPORTA", headline="3 pontos que fazem diferença", icon="bulb", items=_items(dores + difs, p, 3, [f"{tema} pede método", "Constância vence pressa", "Clareza gera confiança"])),
+            Slide(layout="lista", label="POR QUE IMPORTA", headline="3 pontos que fazem diferença", icon="bulb", items=_items(dores + difs, p, 3, [f"{tema} pede método", "Constância vence pressa", "Clareza gera confiança"], words=3)),
             Slide(layout="texto", label="O CAMINHO", headline="Como "+B["cliente"]+" conduz", subhead=g(difs, p.n, f"Método simples para {tema}."), body=g(des, p.n, "Mais clareza e segurança para decidir."), icon="target"),
             five,
             Slide(layout="cta", label="PRÓXIMO PASSO", headline="Vamos conversar?", subhead=f"Com {B['cliente']} você dá o próximo passo.", cta=p.cta[:40] or "Fale com a gente", icon="send")]

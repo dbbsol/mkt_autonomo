@@ -1,4 +1,4 @@
-"""Editor de um slide (texto, ícone, imagem, layout, itens com ícone). Usado no Post avulso e no Plano de 10 dias."""
+"""Editor de um slide (texto, ícone, imagem, layout, itens com ícone). Usado no Plano de 10 dias."""
 import streamlit as st
 import icons as IC
 from ai import Item

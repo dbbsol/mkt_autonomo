@@ -36,10 +36,9 @@ def test_report_pdf():
     assert pdf[:5] == b"%PDF-" and len(re.findall(rb"/Type\s*/Page(?!s)", pdf)) >= 4
 
 
-@pytest.mark.parametrize("modelo", ["Studio · Vinho DBB", "Studio · Rosé Creme", "DBB Soluções", "Livre (layouts criativos)"])
-def test_pack(modelo):
-    B = brief(); S = ST.build_local(B); rp = make_renderer(modelo, "Instagram 4:5", "@x", "Obsidiana", "Editorial", True)
+def test_pack():
+    B = brief(); S = ST.build_local(B); rp = make_renderer()
     z = zipfile.ZipFile(io.BytesIO(pack_zip(B, S, rp))); n = z.namelist()
     assert len([x for x in n if x.endswith("carrossel.pdf")]) == 10 and len([x for x in n if x.endswith("legenda.txt")]) == 10
-    assert len([x for x in n if x.endswith(".png")]) >= 60
-    assert "00_linha_editorial.pdf" in n and "00_calendario.csv" in n and all(z.read(x)[:5] == b"%PDF-" for x in n if x.endswith(".pdf"))
+    assert len([x for x in n if x.endswith(".png")]) == 60
+    assert "00_plano_10_dias.pdf" in n and "00_calendario.csv" in n and all(z.read(x)[:5] == b"%PDF-" for x in n if x.endswith(".pdf"))
