@@ -11,8 +11,7 @@ p.addEventListener('pointermove',e=>{d.style.transform='translate('+e.clientX+'p
 
 def inject():
     css = (Path(__file__).parent / "assets" / "style.css").read_text(encoding="utf-8")
-    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
-    components.html(_GLOW, height=0)
+    st.markdown(f"<style>{css}</style><div class='dbb-orbs'><i></i><i></i><i></i></div>", unsafe_allow_html=True)
 
 
 def nav(right="Content Studio"):
