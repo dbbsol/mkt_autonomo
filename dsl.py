@@ -12,7 +12,7 @@ FACES = {"os_b": ("OpenSans-VF.ttf", [700, 100]), "os_r": ("OpenSans-VF.ttf", [4
          "pf_r": ("PlayfairDisplay-VF.ttf", [400]), "pf_b": ("PlayfairDisplay-VF.ttf", [700]),
          "pf_i": ("PlayfairDisplay-Italic-VF.ttf", [600]), "pop_r": ("Poppins-Regular.ttf", None),
          "pop_m": ("Poppins-Medium.ttf", None), "pop_s": ("Poppins-SemiBold.ttf", None),
-         "chewy": ("Fredoka-VF.ttf", [700, 100]), "bebas": ("BebasNeue-Regular.ttf", None)}
+         "chewy": ("Fredoka-VF.ttf", [700, 100]), "bebas": ("BebasNeue-Regular.ttf", None), "anton": ("Anton-Regular.ttf", None)}
 
 
 def T(**k): return ("text", k)
@@ -35,7 +35,7 @@ def face(k, s):
             try: f.set_variation_by_axes(ax)
             except Exception: pass
         return f
-    return sysfont("t_title" if k in ("os_b", "pf_b", "pop_s", "chewy", "bebas") else "t_body", max(int(s), 8))
+    return sysfont("t_title" if k in ("os_b", "pf_b", "pop_s", "chewy", "bebas", "anton") else "t_body", max(int(s), 8))
 
 
 def tl(d, t, f, sp=0): return d.textlength(t, font=f) + sp * max(len(t) - 1, 0)
