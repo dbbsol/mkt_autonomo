@@ -3,12 +3,34 @@ from pathlib import Path
 import streamlit as st
 
 
+_JS = """<script>
+try{const d=window.parent.document;
+if(!d.getElementById('bar')){
+ const b=d.createElement('div');b.id='bar';d.body.appendChild(b);
+ const g=d.createElement('div');g.className='cursor-glow';d.body.appendChild(g);
+ const m=d.querySelector('[data-testid=stMain]')||d.documentElement;
+ m.addEventListener('scroll',()=>{b.style.width=(m.scrollTop/Math.max(1,m.scrollHeight-m.clientHeight)*100)+'%'},{passive:true});
+ if(window.parent.matchMedia('(pointer:fine)').matches)d.addEventListener('pointermove',e=>{g.style.transform='translate('+e.clientX+'px,'+e.clientY+'px)';g.classList.add('on')},{passive:true});
+}}catch(e){}
+</script>"""
+
+
 def inject():
-    st.markdown(f"<style>{(Path(__file__).parent / 'assets' / 'style.css').read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+    """Identidade DBB: CSS + aurora/grade/grão de fundo + barra de progresso e luz do cursor."""
+    st.markdown(f"<style>{(Path(__file__).parent / 'assets' / 'style.css').read_text(encoding='utf-8')}</style>"
+                '<div class="bg"><div class="orb a"></div><div class="orb b"></div><div class="orb c"></div></div><div class="grain"></div>',
+                unsafe_allow_html=True)
+    try:
+        import streamlit.components.v1 as components
+        components.html(_JS, height=0)
+    except Exception:
+        pass
 
 
 def title(text, sub=""):
-    st.markdown(f'<div class="ttl"><h1>{text}</h1>{f"<p>{sub}</p>" if sub else ""}</div>', unsafe_allow_html=True)
+    """Título no padrão da landing: chip + h1 com a última palavra em gradiente."""
+    w = text.rsplit(" ", 1); text = f'{w[0]} <span class="grad">{w[1]}</span>' if len(w) == 2 else text
+    st.markdown(f'<div class="ttl"><span class="chip"><span class="pulse"></span>DBB · automação e IA</span><h1>{text}</h1>{f"<p>{sub}</p>" if sub else ""}</div>', unsafe_allow_html=True)
 
 
 def gemini_panel():
