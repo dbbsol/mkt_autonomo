@@ -1,7 +1,6 @@
 """Peças de interface na identidade visual da DBB (CSS em assets/style.css)."""
 from pathlib import Path
 import streamlit as st
-import streamlit.components.v1 as components
 
 _GLOW = """<script>try{const p=window.parent.document;if(!p.getElementById('cg')){
 const o=p.createElement('div');o.className='dbb-orbs';o.innerHTML='<i></i><i></i><i></i>';p.body.appendChild(o);
